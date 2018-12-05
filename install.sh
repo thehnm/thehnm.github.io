@@ -15,47 +15,6 @@ preinstallmsg() { \
     dialog --title "Start installing the script!" --yes-label "Let's go!" --no-label "No, nevermind!" --yesno "It will take some time, but when done, you can relax even more with your complete system.\\n\\nNow just press <Let's go!> and the system will begin installation!" 13 60 || { clear; exit; }
 }
 
-setlocale() {
-    answer=$(dialog --title "Locale settings" --yesno "Do you want to edit the locale.gen file?" 5 45 3>&1 1>&2 2>&3 3>&1 || exit)
-    case $? in
-        0 ) clear && sudo vim /etc/locale.gen
-            break;;
-        1 ) break;;
-    esac
-
-    dialog --infobox "Setting locale..." 4 40
-    locale-gen &>/dev/null
-    echo "LANG=$1" >> /etc/locale.conf
-    echo "LANGUAGE=$1" >> /etc/locale.conf
-    echo "LC_ALL=$2" >> /etc/locale.conf
-    echo "KEYMAP=$3" >> /etc/vconsole.conf
-}
-
-settimezone() {
-    # Select continent
-    C=(1 "Africa" 2 "America" 3 "Antarctica" 4 "Arctic" 5 "Asia" 6 "Australia" 7 "Europe" 8 "Pacific")
-    choice1=$(dialog --title "Set timezone" --menu "Chose one" 24 80 17 "${C[@]}" 3>&2 2>&1 1>&3)
-    continent=${C[2*$choice1-1]}
-
-    # Select city
-    let i=0 # define counting variable
-    W=() # define working array
-    while read -r line; do # process file by file
-        let i=$i+1
-        W+=($i "$line")
-    done < <( ls -1 /usr/share/zoneinfo/$continent )
-    choice2=$(dialog --title "Set timezone" --menu "Chose one" 24 80 17 "${W[@]}" 3>&2 2>&1 1>&3)
-    clear
-    if [ "$?" = "0" ]; then # Exit with OK
-        city=${W[2*$choice2-1]}
-    fi
-
-    # Set localtime
-    dialog --infobox "Setting timezone..." 4 40
-    ln -sf /usr/share/zoneinfo/$continent/$city /etc/localtime
-    hwclock --systohc
-}
-
 getuserandpass() {
     # Prompts user for new username an password.
     # Checks if username is valid and confirms passwd.
@@ -129,7 +88,7 @@ editpackages() {
     esac
 }
 
-installloop() {
+install() {
     singleinstall "termite"
     singleinstall "i3-gaps"
     singleinstall "rofi"
@@ -163,7 +122,7 @@ putgitrepo() { # Downlods a gitrepo $1 and places the files in $2 only overwriti
 installdotfiles() {
     dialog --infobox "Installing my dotfiles..." 4 60
     cd "$1"
-    bash "$2"
+    sudo -u "$name" bash "$2"
 }
 
 serviceinit() {
@@ -197,37 +156,6 @@ resetpulse() {
     sudo -n "$name" pulseaudio --start
 }
 
-setuphost() {
-    host=$(dialog --inputbox "Enter the name for your host" 10 60 3>&1 1>&2 2>&3 3>&1) || exit
-    namere="^[a-z_][a-z0-9_-]*$"
-    while ! [[ "${host}" =~ ${namere} ]]; do
-            name=$(dialog --no-cancel --inputbox "Hostname not valid. Give a hostname beginning with a letter, with only lowercase letters, - or _." 10 60 3>&1 1>&2 2>&3 3>&1)
-    done
-
-    dialog --infobox "Setting hostname..." 4 50
-    echo $host>> /etc/hostname
-    echo 127.0.0.1        localhost >> /etc/hosts
-    echo ::1	localhost >> /etc/hosts
-    echo 127.0.1.1	$host.localdomain   $host >> /etc/hosts
-}
-
-installgrub() {
-    choice=$(dialog --yesno "Do you install this on a UEFI machine?" 10 80 3>&2 2>&1 1>&3)
-    case $? in
-        0 ) dialog --infobox "Installing grub for UEFI..." 4 50
-            pacman --noconfirm -S grub efibootmgr &>/dev/null
-            grub-install --target=x86_64-pc --bootloader-id=GRUB --efi-directory=/boot/efi/ &>/dev/null
-            grub-mkconfig -o /boot/grub/grub.cfg &>/dev/null
-            break;;
-        1 ) label=$(dialog --inputbox "Enter the disk where your install Arch Linux e.g. /dev/sda" 10 60 3>&1 1>&2 2>&3 3>&1) || exit
-            dialog --infobox "Installing grub..." 4 50
-            pacman --noconfirm -S grub &>/dev/null
-            grub-install --target=i386-pc $label &>/dev/null
-            grub-mkconfig -o /boot/grub/grub.cfg &>/dev/null
-            break;;
-    esac
-}
-
 finish() {
     dialog --title "Welcome" --msgbox "The installation is done! You can reboot your system now." 10 80
 }
@@ -242,18 +170,11 @@ initialcheck
 # Welcome user.
 welcomemsg
 
-# Set locale.conf: First parameter sets LANG and LANGUAGE, second one sets LC_ALL and third one sets KEYMAP
-setlocale "en_US.UTF-8" "de_DE.UTF-8" "de-latin1"
-
-settimezone
-
 # Get and verify username and password.
 getuserandpass
 
 # Give warning if user already exists.
 usercheck || { clear; exit; }
-
-setuphost
 
 # Last chance for user to back out before install.
 preinstallmsg || { clear; exit; }
@@ -266,7 +187,7 @@ newperms "%wheel ALL=(ALL) NOPASSWD: ALL"
 
 installyay
 
-installloop
+install
 
 # Install the dotfiles in the user's home directory
 putgitrepo "$dotfilesrepo" "/home/$name" "dotfiles-i3"
@@ -290,7 +211,5 @@ sed -i "s/^#Color/Color/g" /etc/pacman.conf
 
 # Fix audio problem
 sed -i 's/^ autospawn/; autospawn/g' /etc/pulse/client.conf
-
-installgrub
 
 finish && clear
