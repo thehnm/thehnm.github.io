@@ -89,14 +89,6 @@ editpackages() {
 }
 
 install() {
-    singleinstall "termite"
-    singleinstall "i3-gaps"
-    singleinstall "rofi"
-    singleinstall "networkmanager"
-    singleinstall "firefox"
-    singleaurinstall "polybar"
-    singleaurinstall "betterlockscreen"
-
     curl https://raw.githubusercontent.com/thehnm/tarbs/master/packages.csv >> /tmp/packages.csv
     editpackages "/tmp/packages.csv"
     total=$(wc -l < /tmp/packages.csv)
