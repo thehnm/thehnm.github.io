@@ -1,7 +1,7 @@
 To download the TARBS script:
 
 ```
-curl https://thehnm.github.io/installrice.sh >> installrice.sh
-chmod +x installrice.sh
-./installrice.sh
+curl https://raw.githubusercontent.com/thehnm/tarbs/master/install.sh >> install.sh
+chmod +x install.sh
+./install.sh
 ```
